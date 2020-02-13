@@ -1,1 +1,0 @@
-# desi_qso_templates
