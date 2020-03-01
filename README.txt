@@ -1,6 +1,7 @@
 # desi_qso_templates
 
-This module provides a straightforwad method to generate quasar object templates for the DESI survey based on a principal component analysis method, `empca` (@sbailey).
+This module provides a straightforwad method to generate quasar object templates for the DESI survey 
+based on a principal component analysis method, `empca` (@sbailey).
 
 Steps to develop templates:
 1) Import and initialize the `ProcQSO` class from the qsoproc submodule.
