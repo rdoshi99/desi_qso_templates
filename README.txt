@@ -10,3 +10,6 @@ Steps to develop templates:
 4) Call the `remove_outliers ` function within the class to remove poor spectrum data
 4) Run the `save_processed` function within the class to write the generated flux and ivar 2D arrays to disk
 5) Follow the steps for processing in `empca` linked here: https://github.com/sbailey/empca/blob/master/README.md.
+
+
+It also contains a WIP notebook with an automated process of Heteroscedastic matrix factorisation (HMF) as it applies to quasar templates. In the future, these methods will be generalized for any application and the results of finding eigenvectors from HMF-factored templates will be compared to generating a model simply from `empca`.
