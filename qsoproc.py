@@ -209,18 +209,40 @@ class ProcQSO:
             
         Returns fluxes, ivars 2D arrays
         """
-        num_spectra = np.unique(num_spectra.astype(int))
-
-        qsocat = Table(fitsio.read(
-            '/global/project/projectdirs/cosmo/data/sdss/dr14/eboss/qso/DR14Q/DR14Q_v4_4.fits', 1))
+        qsocat = Table(fitsio.read('/global/project/projectdirs/cosmo/data/sdss/dr14/eboss/qso/DR14Q/DR14Q_v4_4.fits', 1))
         qsocat.sort('Z')
+
+        nkeep_per_zbin = nkeep
+        keep_indices = list()
+        for zmin in np.arange(0, 7.0, 0.1):
+            zmax = zmin + 0.1
+            ii = np.where((zmin <= qsocat['Z']) & (qsocat['Z'] < zmax))[0]
+            if len(ii) < nkeep_per_zbin:
+                keep_indices.extend(ii)
+                print('only {} for range {} to {}'.format(len(ii), round(zmin, 3), round(zmax, 3)))
+            else:
+                print('randomly selecting for range {} to {}'.format(round(zmin, 3), round(zmax, 3)))
+                keep_indices.extend(np.sort(np.random.choice(ii, size=nkeep_per_zbin, replace=False)))
+        print()
+        print('len idxs kept = {}'.format(len(keep_indices)))
+
+        qsocat = qsocat[keep_indices]
+        qsocat.sort('Z')
+
+        if (len(keep_indices) < num_spectra):
+            print('only {}/{} spectra'.format(len(keep_indices), num_spectra))
+            num_spectra = len(keep_indices)
+        print()
+
+        spectra = np.linspace(0, len(keep_indices), num=num_spectra)
+        spectra = np.unique(spectra.astype(int))
 
         #- store in 2D arrays
         fluxes, ivars = [], []
 
         #- read one spectrum at a time and normalize
         count = 0
-        for i in num_spectra:
+        for i in spectra:
             try:
                 #- read in spectrum and add offset bins
                 spec = read_spectrum(qsocat['PLATE'][i], qsocat['MJD'][i], qsocat['FIBERID'][i])
@@ -238,15 +260,18 @@ class ProcQSO:
 
                 count += 1
             except:
+                qsocat.remove_row(i)
                 pass
+
+        fitsio.writeto('qsocat_selected.fits', data=qsocat)
 
         print('count is ' + str(count))
         plot_spectra(np.arange(count), fluxes)
-        
-        self.flxues = fluxes
-        self.ivars = ivars
 
-        return np.array(fluxes), np.array(ivars)
+        self.fluxes = np.array(fluxes)
+        self.ivars = np.array(ivars)
+
+        return self.fluxes, self.ivars
     
     
     def remove_outliers(self, num_vectors=25):
