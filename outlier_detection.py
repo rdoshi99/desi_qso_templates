@@ -99,6 +99,31 @@ def calc_chisq_dist(fluxes, ivars):
     return chi_dist
 
 
+def remove_outliers(fluxes, ivars, chisq_dist, cutoff_val):
+    """
+    Removes spectra from fluxes with above CUTOFF_VAL of chi-squared values
+    Returns 2D arrays (fluxes and ivars) without those outlier spectra and a new chi_sq dist
+    Args:
+        fluxes : a 2D array of processed spectra
+        ivars : a corresponding 2D array of processed ivars
+        chisq_dist : a distribution of the chi-squared statistics for each spectrum
+                     corresponding to the fluxes and ivars arrays
+        cutoff_val : the chisq_stat value above which poor spectra are removed
+    """    
+    #- Determines which of the spectra are beyond the cutoff
+    outlier_bools = chisq_dist >= cutoff_val
+    outlier_nums = chisq_dist[outlier_bools]
+    
+    print('removing {} bad spectra with chi-sq values > {:.3f}'.format(len(outlier_nums), cutoff_val))
+    
+    #- Removes the outliers from fluxes, ivars
+    fluxes_no_outliers = fluxes[~outlier_bools]
+    ivars_no_outliers = ivars[~outlier_bools]
+    
+    new_dist = calc_chisq_dist(fluxes_no_outliers, ivars_no_outliers)
+    
+    return np.array(fluxes_no_outliers), np.array(ivars_no_outliers), new_dist
+
 
 def outlier_detection(fluxes, ivars):
     """
@@ -118,6 +143,8 @@ def outlier_detection(fluxes, ivars):
     fluxes = fluxes[~bad_chisq]
     ivars = ivars[~bad_chisq]
     
+    #- Removes any ivars with < 80% nonzero values over the relevant wavelength range        
+    
     #- Define a cutoff function based on the distribution
     cutoff_func = lambda dist: 3*np.mean(dist)
     
@@ -133,5 +160,3 @@ def outlier_detection(fluxes, ivars):
         count += 1
         
     return fluxes, ivars, chisq_dist
-
-
