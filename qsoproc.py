@@ -244,25 +244,31 @@ class ProcQSO:
         count = 0
         for i in spectra:
             try:
-                #- read in spectrum and add offset bins
-                spec = read_spectrum(qsocat['PLATE'][i], qsocat['MJD'][i], qsocat['FIBERID'][i])
-                spec = add_rest_loglams(spec, qsocat['Z'][i])
-                spec = rest_loglam_offset(spec)
-
-                #- normalize spec
-                f_array, i_array = construct_arrays(spec)
-
-                if count != 0:
-                    f_array, i_array = normalize(fluxes, ivars, f_array, i_array, count)
-
-                fluxes.append(f_array)
-                ivars.append(i_array)
-
-                count += 1
-            except:
-                qsocat.remove_row(i)
-                pass
-
+    #- read one spectrum at a time and normalize
+    count = 0
+    for i in spectra:
+        try:
+            #- read in spectrum and add offset bins
+            spec = read_spectrum(qsocat['PLATE'][i], qsocat['MJD'][i], qsocat['FIBERID'][i])
+            spec = add_rest_loglams(spec, qsocat['Z'][i])
+            spec = rest_loglam_offset(spec)
+            
+            #- normalize spec
+            f_array, i_array = construct_arrays(spec)
+            
+            if count != 0:
+                f_array, i_array = normalize(fluxes, ivars, f_array, i_array, count)
+            
+            fluxes.append(f_array)
+            ivars.append(i_array)
+            
+            keep_indices.append(i)
+            
+            count += 1
+        except:
+            pass
+    
+        qsocat = qsocat[keep_indices]    
         fitsio.writeto('qsocat_selected.fits', data=qsocat)
 
         print('count is ' + str(count))
