@@ -176,3 +176,4 @@ def run_hmf():
     
     model = np.dot(V, C).T
     
+    return model
