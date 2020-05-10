@@ -1,3 +1,7 @@
+import pickle
+import numpy as np
+
+
 def hmf_weighted(fluxes, ivars, j, num_iter=20, load=False, filestring_a='', filestring_b='', curr_iter=0):
     """
     TODO: docstring
@@ -134,4 +138,41 @@ def load_arrays(filestring_V, filestring_C):
         C = pickle.load(file)
     return V, C
     
+    
+def run_hmf():
+    """
+    TODO: docstring
+    """
+    with open("../empca/data/final_data/fluxes_good.pkl","rb") as file:
+        fluxes = pickle.load(file)
+
+    with open("../empca/data/final_data/ivars_good.pkl","rb") as file:
+        ivars = pickle.load(file)
+
+    print(fluxes.shape)
+    
+    f2, i2 = enough_obs(fluxes, ivars, 5)
+    
+    with open("finaldata_uniform/fluxes.pkl","wb") as file:
+        pickle.dump(f2, file)
+    
+    with open("finaldata_uniform/ivars.pkl","wb") as file:
+        pickle.dump(i2, file)
+        
+    bin_range = np.arange(f2.shape[1])
+    rest_loglam_diffs = bin_range * 0.0001
+    rest_loglams = np.array(rest_loglam_diffs + 2.9)
+    
+    with open("finaldata_uniform/rest_loglams.pkl","wb") as file:
+        pickle.dump(rest_loglams, file)
+    
+    V, C, chistats = hmf_weighted(fluxes, ivars, 5, num_iter=5,)
+
+    with open("finaldata_uniform/model_V.pkl","wb") as file:
+        pickle.dump(V,file)
+
+    with open("finaldata_uniform/model_C.pkl", "wb") as file:
+        pickle.dump(C, file)
+    
+    model = np.dot(V, C).T
     
