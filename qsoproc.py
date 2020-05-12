@@ -279,27 +279,7 @@ class ProcQSO:
 
         return self.fluxes, self.ivars
     
-    
-    def remove_outliers(self, num_vectors=25):
-        """
-        Removes the outlier spectra from the processed fluxes and outliers
-        Gets the 2D arrays in shape for empca processing
-        Options:
-            num_vectors : a minimum number of nonzero ivar vectors necessary 
-                          for each wavelength
-        """
-        # Remove outliers
-        import outlier_detection.outlier_detection
-        self.fluxes, self.ivars = outlier_detection(self.fluxes, self.ivars)
-        
-        # Only keep wavelengths with enough spectrum data        
-        keep = np.sum(self.ivars > 0, axis=0) > 5*num_vectors
-        if sum(keep) == 0:
-            print('Data must have wavelengths with at least {} spectra'.format(5*num_vectors))
-            return
-        self.fluxes = fluxes[:, keep]
-        self.ivars = ivars[:, keep]
-                
+                    
     
     def save_processed(self, name='', savedir=''):
         """
