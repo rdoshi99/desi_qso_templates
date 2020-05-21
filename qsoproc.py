@@ -248,7 +248,6 @@ class ProcQSO:
 
         #- read one spectrum at a time and normalize
         count = 0
-        print('len keep is ' + str(len(keep)))
         for i in spectra:
             try:
                 #- read in spectrum and add offset bins
@@ -263,7 +262,7 @@ class ProcQSO:
                     f_array, i_array = normalize(fluxes, ivars, f_array, i_array, count)
 
                 if f_array is None or i_array is None:
-                    keep.append(0)
+                    # keep.append(0)
                     # print('Passing number {}'.format(i))
                     pass
 
@@ -274,7 +273,7 @@ class ProcQSO:
 
                 count += 1
             except:
-                keep.append(0)
+                # keep.append(0)
                 # print('Passing number {}'.format(i))
                 pass
 
@@ -282,6 +281,7 @@ class ProcQSO:
         qsocat = qsocat[keep]
 
         plot_spectra(np.arange(count), fluxes)
+    
         self.fluxes = np.array(fluxes)
         self.ivars = np.array(ivars)
 
