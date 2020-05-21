@@ -95,24 +95,14 @@ def solveEigvecs(S, W, V, C):
     return V
 
 
-def enough_obs(fluxes, ivars, j, mult_factor=10):
+def enough_obs(fluxes, ivars, min_spectra=50):
     """
     TODO: docstring
     """
-    #- Remove ivars with all zero columns... (pre-processing should have fixed this!)
-    idxs = np.sum(ivars, axis=1) == 0
-    ivars = ivars[~idxs]
-    fluxes = fluxes[~idxs]
-    
-    print('no more 0-valued ivar spectra:')
-    print(sum(np.sum(ivars, axis=1) == 0))
-
     num_ivars_for_wavelength = np.sum(ivars>0, axis=0)
-    nonzero_idx = num_ivars_for_wavelength > mult_factor*j
+    nonzero_idx = num_ivars_for_wavelength > min_spectra
     fluxes = fluxes[:, nonzero_idx]
     ivars = ivars[:, nonzero_idx]
-    
-    #- Removes any ivars with < 80% nonzero values over the relevant wavelength range
     
     return fluxes, ivars
 
