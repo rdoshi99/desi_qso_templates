@@ -4,6 +4,21 @@ from astropy.table import Table
 from scipy.signal import savgol_filter
 import fitsio
 
+
+
+
+def enough_obs(fluxes, ivars, min_spectra=50):
+    """
+    TODO: docstring
+    """
+    num_ivars_for_wavelength = np.sum(ivars>0, axis=0)
+    nonzero_idx = num_ivars_for_wavelength > min_spectra
+    fluxes = fluxes[:, nonzero_idx]
+    ivars = ivars[:, nonzero_idx]
+    
+    return fluxes, ivars
+
+
 def smooth(flux, n=31):
     """
     Smooths the noise from a given spectrum using the scipy function savgol_filter
@@ -70,21 +85,6 @@ def chisq_per_spectrum(num, fluxes, ivars):
     return chi_stat
 
 
-def calc_chisq_dist2(fluxes, ivars):
-    """
-    Generates an array of chisquared stats for each spectrum in FLUXES
-    
-    Args:
-        fluxes : a 2D array of processed spectra
-        ivars : a corresponding 2D array of processed ivars
-    """    
-    chi_dist = np.zeros(len(fluxes))
-    for s in np.arange(len(fluxes)):
-        chi_stat = chisq_per_spectrum(s, fluxes, ivars)
-        chi_dist[s] = chi_stat
-    
-    return chi_dist
-
 
 def calc_chisq_dist(fluxes, ivars):
     """
@@ -99,7 +99,7 @@ def calc_chisq_dist(fluxes, ivars):
     return chi_dist
 
 
-def remove_outliers(fluxes, ivars, chisq_dist, cutoff_val):
+def remove_outliers(fluxes, ivars, chisq_dist, cutoff_val, qsocat):
     """
     Removes spectra from fluxes with above CUTOFF_VAL of chi-squared values
     Returns 2D arrays (fluxes and ivars) without those outlier spectra and a new chi_sq dist
@@ -109,28 +109,45 @@ def remove_outliers(fluxes, ivars, chisq_dist, cutoff_val):
         chisq_dist : a distribution of the chi-squared statistics for each spectrum
                      corresponding to the fluxes and ivars arrays
         cutoff_val : the chisq_stat value above which poor spectra are removed
-    """    
+        qsocat : a quasar catalog of the spectra recorded in fluxes
+    """
+    #- Removes any ivars with < 80% zero values over the relevant wavelength range
+    def zerod_ivars(arr):
+        start, end = np.nonzero(arr)[0][0], np.nonzero(arr)[0][-1]
+        vals = arr[start:end]
+        if (np.count_nonzero(vals) < .8*len(vals)):
+            return 0
+        return 1
+
+    # keep_specs = np.apply_along_axis(zerod_ivars, axis=1, arr=ivars)
+    # fluxes = fluxes[keep_specs]
+    # ivars = ivars[keep_specs]
+    # qsocat = qsocat[keep_specs]
+    
     #- Determines which of the spectra are beyond the cutoff
     outlier_bools = chisq_dist >= cutoff_val
     outlier_nums = chisq_dist[outlier_bools]
     
     print('removing {} bad spectra with chi-sq values > {:.3f}'.format(len(outlier_nums), cutoff_val))
     
-    #- Removes the outliers from fluxes, ivars
-    fluxes_no_outliers = fluxes[~outlier_bools]
+    #- Removes the outliers from fluxes, ivars, qsocat
+    fluxes = fluxes[~outlier_bools]
     ivars_no_outliers = ivars[~outlier_bools]
-    
+    qsocat = qsocat[~outlier_bools]
+        
     new_dist = calc_chisq_dist(fluxes_no_outliers, ivars_no_outliers)
     
-    return np.array(fluxes_no_outliers), np.array(ivars_no_outliers), new_dist
+    return np.array(fluxes_no_outliers), np.array(ivars_no_outliers), new_dist, qsocat
 
 
-def outlier_detection(fluxes, ivars):
+
+def outlier_detection(fluxes, ivars, qsocat):
     """
     Iterates over fluxes and ivars until all outliers removed (when all outliers are within 2SD of the mean)
     Args:
         fluxes : a 2D array of processed spectra
         ivars : a corresponding 2D array of processed ivars
+        qsocat : a quasar catalog of the spectra recorded in fluxes
     Options:
         percentile_cutoff : the percent of poor spectra to remove (default=3)    
     """
@@ -142,8 +159,8 @@ def outlier_detection(fluxes, ivars):
     chisq_dist = chisq_dist[~bad_chisq]
     fluxes = fluxes[~bad_chisq]
     ivars = ivars[~bad_chisq]
+    qsocat = qsocat[~bad_chisq]
     
-    #- Removes any ivars with < 80% nonzero values over the relevant wavelength range        
     
     #- Define a cutoff function based on the distribution
     cutoff_func = lambda dist: 3*np.mean(dist)
@@ -151,12 +168,12 @@ def outlier_detection(fluxes, ivars):
     #- Run at least one iteration of removing outliers
     first_cutoff = cutoff_func(chisq_dist)
     orig_len = len(fluxes)
-    fluxes, ivars, chisq_dist = remove_outliers(fluxes, ivars, chisq_dist, first_cutoff)
+    fluxes, ivars, chisq_dist, qsocat = remove_outliers(fluxes, ivars, chisq_dist, first_cutoff, qsocat)
 
     count=1
     while (len(fluxes) < orig_len and count < 3):
         print('iteration {}'.format(count))
-        fluxes, ivars, chisq_dist = remove_outliers(fluxes, ivars, chisq_dist, cutoff_func(chisq_dist))
+        fluxes, ivars, chisq_dist, qsocat = remove_outliers(fluxes, ivars, chisq_dist, cutoff_func(chisq_dist), qsocat)
         count += 1
         
-    return fluxes, ivars, chisq_dist
+    return fluxes, ivars, chisq_dist, qsocat
