@@ -84,7 +84,7 @@ class ProcQSO:
             mjd
             fiber
         """
-        basedir = '/global/project/projectdirs/cosmo/data/sdss/dr14/eboss/spectro/redux/v5_10_0/spectra'
+        basedir = '/global/cfs/cdirs/sdss/data/sdss/dr14/eboss/spectro/redux/v5_10_0/spectra/'
         specfile = '{basedir}/{plate}/spec-{plate}-{mjd}-{fiber:04d}.fits'.format(
             basedir=basedir, plate=plate, mjd=mjd, fiber=fiber)
 
@@ -110,14 +110,14 @@ class ProcQSO:
         return spectrum
 
     
-    def rest_loglam_offset(spectrum, bin_size=0.0001, rest_loglam_base=2.9):
+    def rest_loglam_offset(spectrum, rest_loglam_base, bin_size=0.0001):
         """
         Bins the logarithmic rest wavelengths of the spectra into enumerated offset bins
         Args:
             spectrum : an array of fluxes for a single spectrum
+            rest_loglam_base :
         Options:
             bin_size
-            rest_loglam_base
 
         Returns:
             Astropy table object of spectrum with added offset bins
@@ -129,10 +129,10 @@ class ProcQSO:
         num_bins_offset = rest_loglam_diffs / bin_size
         #- adds an offset_bins column to the spectrum table
         spectrum['offset_bins'] = np.round(num_bins_offset).astype(int)
-        return spectrum    
+        return spectrum
 
     
-    def construct_arrays(spectrum, num_bins=12000):
+    def construct_arrays(spectrum, num_bins):
         '''
         Constructs flux and ivar arrays for a given spectrum
         Assigns flux values where and_mask != 0 to a weight of 0 in ivar
@@ -155,8 +155,8 @@ class ProcQSO:
             else:
                 ivar_array[spectrum['offset_bins'][i]] = spectrum['ivar'][i]
 
-        return flux_array, ivar_array    
-    
+        return flux_array, ivar_array
+
 
     def normalize(fluxes, ivars, spec, i_array, num_normalized):
         """
@@ -177,10 +177,7 @@ class ProcQSO:
 
         mean_spec = np.sum(spec)/(end_spec-start_spec)
 
-        agg_sum = np.sum(fluxes[:num_normalized], axis=0)
-        num_bins = int((end_spec - start_spec) * num_normalized)
-
-        agg_mean = np.sum(agg_sum) / num_bins
+        agg_mean = np.average(fluxes, weights=ivars)
 
         #- get scale factor
         scale_factor = mean_spec / agg_mean
@@ -197,8 +194,36 @@ class ProcQSO:
 
         return spec, i_array
 
+
+    def select_spectra(qsocat, nkeep, nspec):
+        """
+        #- TODO:
+        """
+        keep_indices = list()
+        for zmin in np.arange(0, 7.0, 0.1):
+            zmax = zmin + 0.1
+            ii = np.where((zmin <= qsocat['Z']) & (qsocat['Z'] < zmax))[0]
+            if len(ii) < nkeep:
+                keep_indices.extend(ii)
+                # print('only {} for range {} to {}'.format(len(ii), round(zmin, 3), round(zmax, 3)))
+            else:
+                # print('randomly selecting for range {} to {}'.format(round(zmin, 3), round(zmax, 3)))
+                keep_indices.extend(np.sort(np.random.choice(ii, size=nkeep, replace=False)))
+
+        qsocat = qsocat[keep_indices]
+
+        if (len(keep_indices) < nspec):
+            print('only {}/{} spectra'.format(len(keep_indices), nspec))
+            nspec = len(keep_indices)
+        else:
+            print('len idxs kept = {}'.format(len(keep_indices)))
+        print()
+        spectra = np.arange(len(qsocat))
+
+        return qsocat, spectra
+
     
-    def proc_pipeline(num_spectra=np.linspace(0, 500000, num=10000)):
+    def proc_pipeline(num_spectra, nkeep=200, rlb=2.6, nbins=13500):
         """
         Iterates over all spectra, process and noramlizes data, stores in 2D arrays 
         as class variables
@@ -209,75 +234,58 @@ class ProcQSO:
             
         Returns fluxes, ivars 2D arrays
         """
-        qsocat = Table(fitsio.read('/global/project/projectdirs/cosmo/data/sdss/dr14/eboss/qso/DR14Q/DR14Q_v4_4.fits', 1))
+        qsocat = Table(fitsio.read('/global/cfs/cdirs/sdss/data/sdss/dr14/eboss/qso/DR14Q/DR14Q_v4_4.fits', 1))
         qsocat.sort('Z')
 
-        nkeep_per_zbin = nkeep
-        keep_indices = list()
-        for zmin in np.arange(0, 7.0, 0.1):
-            zmax = zmin + 0.1
-            ii = np.where((zmin <= qsocat['Z']) & (qsocat['Z'] < zmax))[0]
-            if len(ii) < nkeep_per_zbin:
-                keep_indices.extend(ii)
-                print('only {} for range {} to {}'.format(len(ii), round(zmin, 3), round(zmax, 3)))
-            else:
-                print('randomly selecting for range {} to {}'.format(round(zmin, 3), round(zmax, 3)))
-                keep_indices.extend(np.sort(np.random.choice(ii, size=nkeep_per_zbin, replace=False)))
-        print()
-        print('len idxs kept = {}'.format(len(keep_indices)))
-
-        qsocat = qsocat[keep_indices]
-        qsocat.sort('Z')
-
-        if (len(keep_indices) < num_spectra):
-            print('only {}/{} spectra'.format(len(keep_indices), num_spectra))
-            num_spectra = len(keep_indices)
-        print()
-
-        spectra = np.linspace(0, len(keep_indices), num=num_spectra)
-        spectra = np.unique(spectra.astype(int))
+        qsocat, spectra = select_spectra(qsocat, nkeep, num_spectra)
+        print('Spectra selected')
 
         #- store in 2D arrays
         fluxes, ivars = [], []
 
+        #- indices kept
+        keep = []
+
         #- read one spectrum at a time and normalize
         count = 0
+        print('len keep is ' + str(len(keep)))
         for i in spectra:
             try:
-    #- read one spectrum at a time and normalize
-    count = 0
-    for i in spectra:
-        try:
-            #- read in spectrum and add offset bins
-            spec = read_spectrum(qsocat['PLATE'][i], qsocat['MJD'][i], qsocat['FIBERID'][i])
-            spec = add_rest_loglams(spec, qsocat['Z'][i])
-            spec = rest_loglam_offset(spec)
-            
-            #- normalize spec
-            f_array, i_array = construct_arrays(spec)
-            
-            if count != 0:
-                f_array, i_array = normalize(fluxes, ivars, f_array, i_array, count)
-            
-            fluxes.append(f_array)
-            ivars.append(i_array)
-            
-            keep_indices.append(i)
-            
-            count += 1
-        except:
-            pass
-    
-        qsocat = qsocat[keep_indices]    
-        fitsio.writeto('qsocat_selected.fits', data=qsocat)
+                #- read in spectrum and add offset bins
+                spec = read_spectrum(qsocat['PLATE'][i], qsocat['MJD'][i], qsocat['FIBERID'][i])
+                spec = add_rest_loglams(spec, qsocat['Z'][i])
+                spec = rest_loglam_offset(spec, rlb)
 
-        print('count is ' + str(count))
+                #- normalize spec
+                f_array, i_array = construct_arrays(spec, nbins)
+
+                if count != 0:
+                    f_array, i_array = normalize(fluxes, ivars, f_array, i_array, count)
+
+                if f_array is None or i_array is None:
+                    keep.append(0)
+                    # print('Passing number {}'.format(i))
+                    pass
+
+                fluxes.append(f_array)
+                ivars.append(i_array)
+
+                keep.append(1)
+
+                count += 1
+            except:
+                keep.append(0)
+                # print('Passing number {}'.format(i))
+                pass
+
+        print('count is ' + str(count))    
+        qsocat = qsocat[keep]
+
         plot_spectra(np.arange(count), fluxes)
-
         self.fluxes = np.array(fluxes)
         self.ivars = np.array(ivars)
 
-        return self.fluxes, self.ivars
+        return self.fluxes, self.ivars, qsocat
     
                     
     
