@@ -13,5 +13,4 @@ Steps to develop templates include:
 2) Normalizing the selected spectra by aggregating into subsets of 5 and standardizing to the mean flux of this group
 3) Remove the outliers in 3 iterations using the chi-squared statistic and a tuned cut-off
 4) Run the implemented HMF method to learn the weight coefficients and basis vectors
-5) Perform PCA on the learned model
-- Follow the steps for processing in `empca` linked here: https://github.com/sbailey/empca/blob/master/README.md.
+5) Perform PCA on the learned model by following the directions in `empca` linked here: https://github.com/sbailey/empca/blob/master/README.md.
